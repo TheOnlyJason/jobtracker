@@ -14,14 +14,26 @@ export const isConfigured = Boolean(url && key)
 
 /* ---------- Jobs ---------- */
 
+// Supabase caps each REST request at 1000 rows (PostgREST Max Rows),
+// so page through until an empty page marks the end.
+const PAGE_SIZE = 1000
+
 export async function fetchJobs(): Promise<Job[]> {
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*')
-    .order('date_added', { ascending: false })
-    .order('id', { ascending: false })
-  if (error) throw error
-  return data ?? []
+  const all: Job[] = []
+  for (let from = 0; ; ) {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .order('date_added', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    const rows = data ?? []
+    all.push(...rows)
+    if (rows.length === 0) break
+    from += rows.length
+  }
+  return all
 }
 
 export async function updateJob(id: number, patch: Partial<Job>): Promise<void> {
