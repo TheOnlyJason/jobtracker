@@ -40,6 +40,7 @@ export const STATUSES = [
   'Offer',
   'Rejected',
   'Ghosted',
+  'Skip',
 ] as const
 
 export type Status = (typeof STATUSES)[number]
@@ -54,6 +55,7 @@ export const STATUS_META: Record<
   Offer: { dot: '#34d399', text: '#6ee7b7', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)' },
   Rejected: { dot: '#f87171', text: '#fca5a5', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)' },
   Ghosted: { dot: '#6b7280', text: '#9ca3af', bg: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)' },
+  Skip: { dot: '#c084fc', text: '#d8b4fe', bg: 'rgba(192,132,252,0.12)', border: 'rgba(192,132,252,0.3)' },
 }
 
 export const EXPERIENCE_LEVELS = [

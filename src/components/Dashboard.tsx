@@ -47,7 +47,8 @@ export default function Dashboard({ jobs }: { jobs: Job[] }) {
     for (const j of jobs) byStatus[j.status ?? 'To Apply'] = (byStatus[j.status ?? 'To Apply'] ?? 0) + 1
 
     const companies = new Set(jobs.map((j) => j.company).filter(Boolean)).size
-    const applied = total - (byStatus['To Apply'] ?? 0)
+    const toApply = byStatus['To Apply'] ?? 0
+    const applied = total - toApply - (byStatus['Skip'] ?? 0)
     const active = (byStatus['Applied'] ?? 0) + (byStatus['Interviewing'] ?? 0) + (byStatus['Offer'] ?? 0)
     const interviews = byStatus['Interviewing'] ?? 0
     const offers = byStatus['Offer'] ?? 0
@@ -62,7 +63,7 @@ export default function Dashboard({ jobs }: { jobs: Job[] }) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
 
-    return { total, byStatus, companies, applied, active, responseRate, topCompanies }
+    return { total, byStatus, companies, toApply, applied, active, responseRate, topCompanies }
   }, [jobs])
 
   const maxStatus = Math.max(1, ...STATUSES.map((s) => stats.byStatus[s] ?? 0))
@@ -72,7 +73,7 @@ export default function Dashboard({ jobs }: { jobs: Job[] }) {
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total jobs" value={stats.total} sub={`across ${stats.companies} companies`} icon={<IconList />} accent="#6366f1" />
-        <StatCard label="Applied" value={stats.applied} sub={`${stats.total - stats.applied} still to apply`} icon={<IconBolt />} accent="#60a5fa" />
+        <StatCard label="Applied" value={stats.applied} sub={`${stats.toApply} still to apply`} icon={<IconBolt />} accent="#60a5fa" />
         <StatCard label="Active pipeline" value={stats.active} sub="applied · interviewing · offers" icon={<IconTarget />} accent="#fbbf24" />
         <StatCard label="Response rate" value={`${stats.responseRate}%`} sub="interviews + offers / applied" icon={<IconTrend />} accent="#34d399" />
       </div>
