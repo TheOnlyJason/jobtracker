@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { Job } from './types'
-import { fetchJobs, updateJob, deleteJob, isConfigured } from './lib/supabase'
+import type { DashboardStats, Job } from './types'
+import { fetchJobs, fetchDashboardStats, updateJob, deleteJob, isConfigured } from './lib/supabase'
 import { ToastProvider, useToast, Modal } from './components/ui'
 import Dashboard from './components/Dashboard'
 import JobsView from './components/JobsView'
@@ -27,6 +27,7 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
 function Shell() {
   const notify = useToast()
   const [jobs, setJobs] = useState<Job[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('dashboard')
@@ -40,42 +41,64 @@ function Shell() {
       setLoading(false)
       return
     }
-    fetchJobs()
-      .then(setJobs)
+    Promise.all([fetchJobs(), fetchDashboardStats()])
+      .then(([js, st]) => {
+        setJobs(js)
+        setStats(st)
+      })
       .catch((e) => setError(e?.message ?? 'Failed to load jobs'))
       .finally(() => setLoading(false))
+  }, [])
+
+  // Keep the server-derived stats in step with local edits so the dashboard
+  // stays accurate without a refetch.
+  const shiftStats = useCallback((from: string | null, to: string | null, totalDelta = 0) => {
+    setStats((s) => {
+      if (!s) return s
+      const by = { ...s.by_status }
+      if (from) by[from] = Math.max(0, (by[from] ?? 0) - 1)
+      if (to) by[to] = (by[to] ?? 0) + 1
+      return { ...s, total: s.total + totalDelta, by_status: by }
+    })
   }, [])
 
   const handleUpdate = useCallback(
     async (id: number, patch: Partial<Job>) => {
       const prev = jobs
+      const oldStatus = jobs.find((j) => j.id === id)?.status ?? 'To Apply'
+      const statusChanged = patch.status != null && patch.status !== oldStatus
       setJobs((js) => js.map((j) => (j.id === id ? { ...j, ...patch } : j)))
+      if (statusChanged) shiftStats(oldStatus, patch.status!)
       try {
         await updateJob(id, patch)
       } catch (e) {
         setJobs(prev)
+        if (statusChanged) shiftStats(patch.status!, oldStatus)
         notify(e instanceof Error ? e.message : 'Update failed', 'err')
       }
     },
-    [jobs, notify],
+    [jobs, notify, shiftStats],
   )
 
   const confirmDelete = useCallback(async () => {
     if (confirmId == null) return
     setDeleting(true)
     const prev = jobs
+    const deletedStatus = jobs.find((j) => j.id === confirmId)?.status ?? 'To Apply'
     setJobs((js) => js.filter((j) => j.id !== confirmId))
+    shiftStats(deletedStatus, null, -1)
     try {
       await deleteJob(confirmId)
       notify('Job deleted')
     } catch (e) {
       setJobs(prev)
+      shiftStats(null, deletedStatus, 1)
       notify(e instanceof Error ? e.message : 'Delete failed', 'err')
     } finally {
       setDeleting(false)
       setConfirmId(null)
     }
-  }, [confirmId, jobs, notify])
+  }, [confirmId, jobs, notify, shiftStats])
 
   const toDelete = jobs.find((j) => j.id === confirmId)
 
@@ -90,7 +113,7 @@ function Shell() {
             </span>
             <div>
               <h1 className="text-base font-bold leading-none tracking-tight">JobTracker</h1>
-              <p className="mt-1 text-xs text-[--color-muted]">{jobs.length} jobs tracked</p>
+              <p className="mt-1 text-xs text-[--color-muted]">{(stats?.total ?? jobs.length).toLocaleString()} jobs tracked</p>
             </div>
           </div>
           <button className="btn btn-primary" onClick={() => setAddOpen(true)}>
@@ -137,8 +160,8 @@ function Shell() {
         </div>
       ) : (
         <main className="animate-fade">
-          {tab === 'dashboard' && <Dashboard jobs={jobs} />}
-          {tab === 'jobs' && <JobsView jobs={jobs} onUpdate={handleUpdate} onDelete={setConfirmId} />}
+          {tab === 'dashboard' && stats && <Dashboard serverStats={stats} />}
+          {tab === 'jobs' && <JobsView jobs={jobs} total={stats?.total} onUpdate={handleUpdate} onDelete={setConfirmId} />}
           {tab === 'board' && <BoardView jobs={jobs} onUpdate={handleUpdate} />}
           {tab === 'recruiters' && <RecruitersView />}
         </main>
@@ -147,7 +170,10 @@ function Shell() {
       <AddJobModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onAdded={(job) => setJobs((js) => [job, ...js])}
+        onAdded={(job) => {
+          setJobs((js) => [job, ...js])
+          shiftStats(null, job.status ?? 'To Apply', 1)
+        }}
       />
 
       <Modal open={confirmId != null} onClose={() => setConfirmId(null)} title="Delete job?" width={420}>

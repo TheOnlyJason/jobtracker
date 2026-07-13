@@ -9,10 +9,12 @@ type RepostFilter = 'all' | 'reposts' | 'original'
 
 export default function JobsView({
   jobs,
+  total,
   onUpdate,
   onDelete,
 }: {
   jobs: Job[]
+  total?: number
   onUpdate: (id: number, patch: Partial<Job>) => void
   onDelete: (id: number) => void
 }) {
@@ -193,6 +195,9 @@ export default function JobsView({
       </div>
       <p className="px-1 text-xs text-[--color-muted]">
         Showing {filtered.length} of {jobs.length} jobs
+        {total != null && total > jobs.length && (
+          <> — latest {jobs.length} of {total.toLocaleString()} total</>
+        )}
       </p>
     </div>
   )

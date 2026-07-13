@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Job, JobInsert, Recruiter } from '../types'
+import type { DashboardStats, Job, JobInsert, Recruiter } from '../types'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -14,26 +14,26 @@ export const isConfigured = Boolean(url && key)
 
 /* ---------- Jobs ---------- */
 
-// Supabase caps each REST request at 1000 rows (PostgREST Max Rows),
-// so page through until an empty page marks the end.
-const PAGE_SIZE = 1000
+// Only the latest jobs are loaded into the UI to keep it fast as the table
+// grows; dashboard numbers come from the job_dashboard_stats RPC, which
+// aggregates over the whole table in the database.
+const LATEST_LIMIT = 200
 
 export async function fetchJobs(): Promise<Job[]> {
-  const all: Job[] = []
-  for (let from = 0; ; ) {
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*')
-      .order('date_added', { ascending: false })
-      .order('id', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw error
-    const rows = data ?? []
-    all.push(...rows)
-    if (rows.length === 0) break
-    from += rows.length
-  }
-  return all
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .order('date_added', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(LATEST_LIMIT)
+  if (error) throw error
+  return data ?? []
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  const { data, error } = await supabase.rpc('job_dashboard_stats')
+  if (error) throw error
+  return data as DashboardStats
 }
 
 export async function updateJob(id: number, patch: Partial<Job>): Promise<void> {

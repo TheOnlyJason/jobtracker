@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Job } from '../types'
+import type { DashboardStats } from '../types'
 import { STATUSES, STATUS_META } from '../types'
 import { IconList, IconBuilding, IconTarget, IconTrend, IconBolt } from './icons'
 
@@ -39,14 +39,11 @@ function StatCard({
   )
 }
 
-export default function Dashboard({ jobs }: { jobs: Job[] }) {
+export default function Dashboard({ serverStats }: { serverStats: DashboardStats }) {
   const stats = useMemo(() => {
-    const total = jobs.length
-    const byStatus: Record<string, number> = {}
-    for (const s of STATUSES) byStatus[s] = 0
-    for (const j of jobs) byStatus[j.status ?? 'To Apply'] = (byStatus[j.status ?? 'To Apply'] ?? 0) + 1
-
-    const companies = new Set(jobs.map((j) => j.company).filter(Boolean)).size
+    const byStatus = serverStats.by_status
+    const total = serverStats.total
+    const companies = serverStats.companies
     const toApply = byStatus['To Apply'] ?? 0
     const applied = total - toApply - (byStatus['Skip'] ?? 0)
     const active = (byStatus['Applied'] ?? 0) + (byStatus['Interviewing'] ?? 0) + (byStatus['Offer'] ?? 0)
@@ -54,17 +51,10 @@ export default function Dashboard({ jobs }: { jobs: Job[] }) {
     const offers = byStatus['Offer'] ?? 0
     const responseRate = applied > 0 ? Math.round(((interviews + offers) / applied) * 100) : 0
 
-    const topCompanies = Object.entries(
-      jobs.reduce<Record<string, number>>((acc, j) => {
-        if (j.company) acc[j.company] = (acc[j.company] ?? 0) + 1
-        return acc
-      }, {}),
-    )
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
+    const topCompanies: [string, number][] = serverStats.top_companies.map((c) => [c.company, c.n])
 
     return { total, byStatus, companies, toApply, applied, active, responseRate, topCompanies }
-  }, [jobs])
+  }, [serverStats])
 
   const maxStatus = Math.max(1, ...STATUSES.map((s) => stats.byStatus[s] ?? 0))
   const maxCompany = Math.max(1, ...stats.topCompanies.map((c) => c[1]))

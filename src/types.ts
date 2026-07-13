@@ -33,6 +33,13 @@ export type JobInsert = {
   easy_apply?: string | null
 }
 
+export interface DashboardStats {
+  total: number
+  companies: number
+  by_status: Record<string, number>
+  top_companies: { company: string; n: number }[]
+}
+
 export const STATUSES = [
   'To Apply',
   'Applied',
