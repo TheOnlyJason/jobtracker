@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Job } from '../types'
-import { STATUSES, STATUS_META } from '../types'
+import { STATUSES, STATUS_META, formatMinExperience } from '../types'
+import { fetchJobsByMaxExperience } from '../lib/supabase'
 import { IconSearch, IconExternal, IconTrash, IconBolt } from './icons'
-import { StatusBadge } from './ui'
+import { StatusBadge, useToast } from './ui'
 
 type SortKey = 'date' | 'company' | 'title' | 'status'
 type RepostFilter = 'all' | 'reposts' | 'original'
+type ExpFilter = 'any' | '0' | '1' | '2' | '3'
 
 export default function JobsView({
   jobs,
@@ -21,11 +23,39 @@ export default function JobsView({
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('All')
   const [repostFilter, setRepostFilter] = useState<RepostFilter>('all')
+  const [expFilter, setExpFilter] = useState<ExpFilter>('any')
   const [sort, setSort] = useState<SortKey>('date')
+  const notify = useToast()
+
+  // Rows fetched server-side when an experience filter is active; the loaded
+  // window otherwise. Local status edits are mirrored into this copy.
+  const [serverRows, setServerRows] = useState<Job[] | null>(null)
+  useEffect(() => {
+    if (expFilter === 'any') {
+      setServerRows(null)
+      return
+    }
+    let stale = false
+    fetchJobsByMaxExperience(Number(expFilter))
+      .then((rows) => {
+        if (!stale) setServerRows(rows)
+      })
+      .catch((e) => notify(e instanceof Error ? e.message : 'Experience filter failed', 'err'))
+    return () => {
+      stale = true
+    }
+  }, [expFilter, notify])
+
+  const source = serverRows ?? jobs
+
+  const handleUpdate = (id: number, patch: Partial<Job>) => {
+    onUpdate(id, patch)
+    setServerRows((rows) => rows?.map((r) => (r.id === id ? { ...r, ...patch } : r)) ?? null)
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    let out = jobs.filter((j) => {
+    let out = source.filter((j) => {
       if (statusFilter !== 'All' && (j.status ?? 'To Apply') !== statusFilter) return false
       if (repostFilter === 'reposts' && !j.repost) return false
       if (repostFilter === 'original' && j.repost) return false
@@ -49,20 +79,20 @@ export default function JobsView({
       }
     })
     return out
-  }, [jobs, q, statusFilter, repostFilter, sort])
+  }, [source, q, statusFilter, repostFilter, sort])
 
   const repostCounts = useMemo(() => {
     let reposts = 0
-    for (const j of jobs) if (j.repost) reposts++
-    return { reposts, original: jobs.length - reposts }
-  }, [jobs])
+    for (const j of source) if (j.repost) reposts++
+    return { reposts, original: source.length - reposts }
+  }, [source])
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { All: jobs.length }
+    const c: Record<string, number> = { All: source.length }
     for (const s of STATUSES) c[s] = 0
-    for (const j of jobs) c[j.status ?? 'To Apply'] = (c[j.status ?? 'To Apply'] ?? 0) + 1
+    for (const j of source) c[j.status ?? 'To Apply'] = (c[j.status ?? 'To Apply'] ?? 0) + 1
     return c
-  }, [jobs])
+  }, [source])
 
   return (
     <div className="space-y-4">
@@ -80,10 +110,21 @@ export default function JobsView({
         <div className="flex items-center gap-2">
           <select
             className="input w-auto"
+            value={expFilter}
+            onChange={(e) => setExpFilter(e.target.value as ExpFilter)}
+          >
+            <option value="any">Any experience</option>
+            <option value="0">No experience required</option>
+            <option value="1">≤ 1 year</option>
+            <option value="2">≤ 2 years</option>
+            <option value="3">≤ 3 years</option>
+          </select>
+          <select
+            className="input w-auto"
             value={repostFilter}
             onChange={(e) => setRepostFilter(e.target.value as RepostFilter)}
           >
-            <option value="all">All postings ({jobs.length})</option>
+            <option value="all">All postings ({source.length})</option>
             <option value="reposts">Reposts only ({repostCounts.reposts})</option>
             <option value="original">Hide reposts ({repostCounts.original})</option>
           </select>
@@ -123,12 +164,13 @@ export default function JobsView({
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wider text-[--color-muted]">
                 <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium">Location</th>
                 <th className="px-4 py-3 font-medium">Level</th>
+                <th className="px-4 py-3 font-medium">Min exp</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Added</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -153,8 +195,9 @@ export default function JobsView({
                   </td>
                   <td className="px-4 py-3 text-[#c4c4d4]">{j.location ?? '—'}</td>
                   <td className="px-4 py-3 text-[--color-muted]">{j.experience_level ?? '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-[#c4c4d4]">{formatMinExperience(j.min_experience_years)}</td>
                   <td className="px-4 py-3">
-                    <StatusSelect job={j} onUpdate={onUpdate} />
+                    <StatusSelect job={j} onUpdate={handleUpdate} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs text-[--color-muted]">
                     {j.date_added ? new Date(j.date_added).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
@@ -194,9 +237,12 @@ export default function JobsView({
         )}
       </div>
       <p className="px-1 text-xs text-[--color-muted]">
-        Showing {filtered.length} of {jobs.length} jobs
-        {total != null && total > jobs.length && (
-          <> — latest {jobs.length} of {total.toLocaleString()} total</>
+        Showing {filtered.length} of {source.length} jobs
+        {serverRows != null ? (
+          <> — newest {source.length} matching the experience filter</>
+        ) : (
+          total != null &&
+          total > source.length && <> — latest {source.length} of {total.toLocaleString()} total</>
         )}
       </p>
     </div>

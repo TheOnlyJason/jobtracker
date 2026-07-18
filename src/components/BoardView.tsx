@@ -92,6 +92,11 @@ export default function BoardView({
                   <p className="mt-1 text-xs text-[--color-muted]">{j.company ?? '—'}</p>
                   <div className="mt-2 flex items-center gap-2">
                     {j.location && <span className="text-[11px] text-[#7a7a92]">{j.location}</span>}
+                    {j.min_experience_years != null && j.min_experience_years > 0 && (
+                      <span className="rounded bg-[--color-surface] px-1.5 py-0.5 text-[10px] font-semibold text-[#9a9ab0]">
+                        {j.min_experience_years}+ yrs
+                      </span>
+                    )}
                     {j.easy_apply && (
                       <span className="ml-auto inline-flex items-center gap-0.5 rounded bg-[rgba(99,102,241,0.15)] px-1.5 py-0.5 text-[10px] font-semibold text-[#a5b4fc]">
                         <IconBolt className="h-2.5 w-2.5" /> Easy

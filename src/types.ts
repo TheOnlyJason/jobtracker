@@ -11,6 +11,12 @@ export interface Job {
   repost: boolean | null
   date_added: string | null
   created_at: string | null
+  min_experience_years: number | null
+}
+
+export function formatMinExperience(years: number | null): string {
+  if (years == null) return '—'
+  return years === 0 ? '0 yrs' : `${years}+ yrs`
 }
 
 export interface Recruiter {
@@ -31,6 +37,7 @@ export type JobInsert = {
   experience_level?: string | null
   status?: string | null
   easy_apply?: string | null
+  min_experience_years?: number | null
 }
 
 export interface DashboardStats {

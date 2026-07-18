@@ -29,6 +29,7 @@ export default function AddJobModal({
     experience_level: 'Entry Level',
     status: 'To Apply',
     easy_apply: false,
+    min_experience: '',
   })
 
   const set = (k: keyof typeof f, v: string | boolean) => setF((p) => ({ ...p, [k]: v }))
@@ -42,6 +43,7 @@ export default function AddJobModal({
       experience_level: 'Entry Level',
       status: 'To Apply',
       easy_apply: false,
+      min_experience: '',
     })
 
   async function submit(e: React.FormEvent) {
@@ -61,6 +63,7 @@ export default function AddJobModal({
         experience_level: f.experience_level,
         status: f.status,
         easy_apply: f.easy_apply ? 'Yes' : null,
+        min_experience_years: f.min_experience.trim() === '' ? null : Number(f.min_experience),
       })
       onAdded(job)
       notify('Job added')
@@ -106,6 +109,17 @@ export default function AddJobModal({
             </select>
           </Field>
         </div>
+        <Field label="Min experience required (years)">
+          <input
+            className="input"
+            type="number"
+            min={0}
+            max={30}
+            value={f.min_experience}
+            onChange={(e) => set('min_experience', e.target.value)}
+            placeholder="e.g. 0"
+          />
+        </Field>
         <label className="flex cursor-pointer items-center gap-2.5 text-sm text-[#cbd5e1]">
           <input
             type="checkbox"

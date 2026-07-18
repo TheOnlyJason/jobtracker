@@ -30,6 +30,22 @@ export async function fetchJobs(): Promise<Job[]> {
   return data ?? []
 }
 
+// Server-side experience filter: the newest rows often haven't been enriched
+// with min_experience_years yet, so filtering the loaded window client-side
+// would miss everything. Query the whole table instead.
+export async function fetchJobsByMaxExperience(maxYears: number): Promise<Job[]> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .not('min_experience_years', 'is', null)
+    .lte('min_experience_years', maxYears)
+    .order('date_added', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(LATEST_LIMIT)
+  if (error) throw error
+  return data ?? []
+}
+
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const { data, error } = await supabase.rpc('job_dashboard_stats')
   if (error) throw error
